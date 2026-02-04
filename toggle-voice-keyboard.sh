@@ -22,6 +22,9 @@ if ! ps -p "$PID" > /dev/null; then
     exit 0
 fi
 
+# State file location (prefer XDG_RUNTIME_DIR)
+STATE_FILE="${XDG_RUNTIME_DIR:-/tmp}/voice-keyboard.state"
+
 # Send SIGUSR1 to toggle the state
 echo "📡 Sending toggle signal to PID $PID..."
 if kill -SIGUSR1 "$PID" 2>/dev/null; then
@@ -30,8 +33,8 @@ if kill -SIGUSR1 "$PID" 2>/dev/null; then
     # Wait a moment for the binary to write the new state
     sleep 0.2
     STATE="unknown"
-    if [ -f "/tmp/voice-keyboard.state" ]; then
-        STATE=$(cat "/tmp/voice-keyboard.state")
+    if [ -f "$STATE_FILE" ]; then
+        STATE=$(cat "$STATE_FILE")
     fi
 
     if [ "$STATE" == "ACTIVE" ]; then

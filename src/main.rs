@@ -213,10 +213,19 @@ async fn main() -> Result<()> {
     let is_listening_signal = is_listening.clone();
 
     // State file to share listening state with toggle script
-    let state_file_path = "/tmp/voice-keyboard.state";
-    let write_state = |state: bool| {
-        if let Ok(mut f) = File::create(state_file_path) {
-            let _ = f.write_all(if state { b"ACTIVE" } else { b"PAUSED" });
+    let runtime_dir = std::env::var("XDG_RUNTIME_DIR").unwrap_or_else(|_| "/tmp".to_string());
+    let state_file_path = format!("{}/voice-keyboard.state", runtime_dir);
+    let state_file_path_clone = state_file_path.clone();
+    
+    let write_state = move |state: bool| {
+        match File::create(&state_file_path_clone) {
+            Ok(mut f) => {
+                let _ = f.write_all(if state { b"ACTIVE" } else { b"PAUSED" });
+            },
+            Err(e) => {
+                error!("Failed to create state file at {}: {}", state_file_path_clone, e);
+                eprintln!("Error: Failed to create state file at {}: {}", state_file_path_clone, e);
+            }
         }
     };
     write_state(true); // Initial state

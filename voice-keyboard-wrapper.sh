@@ -9,5 +9,12 @@ export RUST_LOG="${RUST_LOG:-info}"
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR}"
 export PULSE_SERVER="${PULSE_SERVER:-unix:${XDG_RUNTIME_DIR}/pulse/native}"
 
+# Lancer l'indicateur visuel (OSD) en arrière-plan
+python3 /home/andycinquin/.local/bin/voice-keyboard-osd.py &
+OSD_PID=$!
+
 # Lancer voice-keyboard
-exec /home/andycinquin/.local/bin/voice-keyboard "$@"
+/home/andycinquin/.local/bin/voice-keyboard "$@"
+
+# Nettoyage en cas d'arrêt
+kill $OSD_PID 2>/dev/null
