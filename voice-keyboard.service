@@ -1,15 +1,17 @@
 [Unit]
 Description=Voice Keyboard - Speech to Text Input
 Documentation=https://github.com/deepgram/voice-keyboard-linux
-After=graphical-session.target
+After=graphical-session.target sound.target
 
 [Service]
 Type=simple
-ExecStart=%h/.local/bin/voice-keyboard-wrapper
+ExecStart=/bin/bash -c 'XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR} exec /home/andycinquin/.local/bin/voice-keyboard-wrapper --test-stt'
 Restart=on-failure
-RestartSec=5s
+RestartSec=10s
 
-# Environnement
+# Environment variables
+Environment="XDG_RUNTIME_DIR=/run/user/1000"
+Environment="PULSE_SERVER=unix:/run/user/1000/pulse/native"
 Environment="RUST_LOG=info"
 
 # Logs
