@@ -168,8 +168,19 @@ pub struct InputId {
     pub version: u16,
 }
 
-// Character to key code mapping
-pub fn char_to_keycode(c: char) -> Option<(u16, bool)> {
+
+use crate::keyboard_layout::KeyboardLayout;
+
+// Character to key code mapping with layout support
+pub fn char_to_keycode(c: char, layout: KeyboardLayout) -> Option<(u16, bool)> {
+    match layout {
+        KeyboardLayout::Qwerty => char_to_keycode_qwerty(c),
+        KeyboardLayout::Azerty => char_to_keycode_azerty(c),
+    }
+}
+
+/// Mapping pour clavier QWERTY (US)
+fn char_to_keycode_qwerty(c: char) -> Option<(u16, bool)> {
     match c {
         // Direct letter mappings instead of calculating offsets
         'a' | 'A' => Some((KEY_A, c.is_uppercase())),
@@ -235,6 +246,102 @@ pub fn char_to_keycode(c: char) -> Option<(u16, bool)> {
         '>' => Some((KEY_DOT, true)),
         '/' => Some((KEY_SLASH, false)),
         '?' => Some((KEY_SLASH, true)),
+        _ => None,
+    }
+}
+
+/// Mapping pour clavier AZERTY (French)
+/// Note: En AZERTY, les positions physiques des touches sont différentes
+fn char_to_keycode_azerty(c: char) -> Option<(u16, bool)> {
+    match c {
+        // Lettres: positions physiques AZERTY
+        // Rangée 1: A Z E R T Y U I O P
+        'a' | 'A' => Some((KEY_Q, c.is_uppercase())),  // 'a' est sur la position Q
+        'z' | 'Z' => Some((KEY_W, c.is_uppercase())),  // 'z' est sur la position W
+        'e' | 'E' => Some((KEY_E, c.is_uppercase())),
+        'r' | 'R' => Some((KEY_R, c.is_uppercase())),
+        't' | 'T' => Some((KEY_T, c.is_uppercase())),
+        'y' | 'Y' => Some((KEY_Y, c.is_uppercase())),
+        'u' | 'U' => Some((KEY_U, c.is_uppercase())),
+        'i' | 'I' => Some((KEY_I, c.is_uppercase())),
+        'o' | 'O' => Some((KEY_O, c.is_uppercase())),
+        'p' | 'P' => Some((KEY_P, c.is_uppercase())),
+        
+        // Rangée 2: Q S D F G H J K L M
+        'q' | 'Q' => Some((KEY_A, c.is_uppercase())),  // 'q' est sur la position A
+        's' | 'S' => Some((KEY_S, c.is_uppercase())),
+        'd' | 'D' => Some((KEY_D, c.is_uppercase())),
+        'f' | 'F' => Some((KEY_F, c.is_uppercase())),
+        'g' | 'G' => Some((KEY_G, c.is_uppercase())),
+        'h' | 'H' => Some((KEY_H, c.is_uppercase())),
+        'j' | 'J' => Some((KEY_J, c.is_uppercase())),
+        'k' | 'K' => Some((KEY_K, c.is_uppercase())),
+        'l' | 'L' => Some((KEY_L, c.is_uppercase())),
+        'm' | 'M' => Some((KEY_SEMICOLON, c.is_uppercase())),  // 'm' est sur la position ;
+        
+        // Rangée 3: W X C V B N
+        'w' | 'W' => Some((KEY_Z, c.is_uppercase())),  // 'w' est sur la position Z
+        'x' | 'X' => Some((KEY_X, c.is_uppercase())),
+        'c' | 'C' => Some((KEY_C, c.is_uppercase())),
+        'v' | 'V' => Some((KEY_V, c.is_uppercase())),
+        'b' | 'B' => Some((KEY_B, c.is_uppercase())),
+        'n' | 'N' => Some((KEY_N, c.is_uppercase())),
+        
+        // Chiffres: en AZERTY les chiffres nécessitent Shift
+        '1' => Some((KEY_1, true)),   // &
+        '2' => Some((KEY_2, true)),   // é 
+        '3' => Some((KEY_3, true)),   // "
+        '4' => Some((KEY_4, true)),   // '
+        '5' => Some((KEY_5, true)),   // (
+        '6' => Some((KEY_6, true)),   // -
+        '7' => Some((KEY_7, true)),   // è
+        '8' => Some((KEY_8, true)),   // _
+        '9' => Some((KEY_9, true)),   // ç
+        '0' => Some((KEY_0, true)),   // à
+        
+        // Caractères spéciaux AZERTY sans Shift
+        '&' => Some((KEY_1, false)),
+        'é' => Some((KEY_2, false)),
+        '"' => Some((KEY_3, false)),
+        '\'' => Some((KEY_4, false)),
+        '(' => Some((KEY_5, false)),
+        '-' => Some((KEY_6, false)),
+        'è' => Some((KEY_7, false)),
+        '_' => Some((KEY_8, false)),
+        'ç' => Some((KEY_9, false)),
+        'à' => Some((KEY_0, false)),
+        
+        // Caractères spéciaux AZERTY avec Shift
+        '°' => Some((KEY_GRAVE, true)),  // Sur la touche ²
+        ')' => Some((KEY_MINUS, false)), // Sur la touche )°
+        '=' => Some((KEY_EQUAL, false)),
+        '+' => Some((KEY_EQUAL, true)),
+        
+        // Variantes majuscules des caractères accentués
+        'É' => Some((KEY_2, true)),
+        'È' => Some((KEY_7, true)),
+        'Ç' => Some((KEY_9, true)),
+        'À' => Some((KEY_0, true)),
+        
+        // Caractères communs
+        ' ' => Some((KEY_SPACE, false)),
+        '\n' => Some((KEY_ENTER, false)),
+        '\t' => Some((KEY_TAB, false)),
+        
+        // Ponctuation
+        ',' => Some((KEY_M, false)),
+        ';' => Some((KEY_COMMA, false)),
+        ':' => Some((KEY_DOT, false)),
+        '!' => Some((KEY_SLASH, false)),
+        '.' => Some((KEY_COMMA, true)),  // Shift + ,
+        '?' => Some((KEY_M, true)),       // Shift + ,
+        
+        // Autres caractères qui peuvent apparaître
+        '*' => Some((KEY_BACKSLASH, false)),
+        '%' => Some((KEY_APOSTROPHE, true)),
+        '£' => Some((KEY_3, false)),
+        '$' => Some((KEY_RIGHTBRACE, false)),
+        
         _ => None,
     }
 }

@@ -9,6 +9,7 @@ use tracing::{debug, error, info};
 
 mod audio_input;
 mod input_event;
+mod keyboard_layout;
 mod stt_client;
 mod virtual_keyboard;
 
@@ -150,15 +151,33 @@ async fn main() -> Result<()> {
                 .help("Convert all typed text to uppercase")
                 .action(clap::ArgAction::SetTrue),
         )
+        .arg(
+            Arg::new("model")
+                .long("model")
+                .help("Deepgram model to use")
+                .value_name("MODEL")
+                .default_value("nova-3-general"),
+        )
+        .arg(
+            Arg::new("language")
+                .long("language")
+                .help("Language code (en, fr, multi)")
+                .value_name("LANG")
+                .default_value("multi"),
+        )
         .get_matches();
 
     let device_name = "Voice Keyboard";
 
+    // Detect keyboard layout
+    let layout = keyboard_layout::KeyboardLayout::detect();
+    info!("Detected keyboard layout: {:?}", layout);
+
     // Step 1: Create virtual keyboard while we have root privileges
     debug!("Creating virtual keyboard device (requires root privileges)...");
     let hardware =
-        RealKeyboardHardware::new(device_name).context("Failed to create keyboard hardware")?;
-    let mut keyboard = VirtualKeyboard::new(hardware);
+        RealKeyboardHardware::new(device_name, layout).context("Failed to create keyboard hardware")?;
+    let mut keyboard = VirtualKeyboard::new(hardware, layout);
     let voice_enter_enabled = matches.get_flag("voice-enter");
     let uppercase_enabled = matches.get_flag("uppercase");
     keyboard.set_voice_enter_enabled(voice_enter_enabled);
@@ -313,7 +332,12 @@ where
     );
 
     let mut audio_buffer = AudioBuffer::new(audio_input.get_sample_rate(), 160);
-    let stt_client = SttClient::new(stt_url, audio_input.get_sample_rate());
+    
+    // Get model and language from environment or use defaults
+    let model = std::env::var("DEEPGRAM_MODEL").unwrap_or_else(|_| "nova-3-general".to_string());
+    let language = std::env::var("DEEPGRAM_LANGUAGE").unwrap_or_else(|_| "multi".to_string());
+    
+    let stt_client = SttClient::new(stt_url, audio_input.get_sample_rate(), &model, &language);
 
     info!(?stt_url, "Connecting to STT service...");
     let (audio_tx, handle) = stt_client

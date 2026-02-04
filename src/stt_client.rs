@@ -105,13 +105,17 @@ fn enrich_ws_error(err: WsError) -> anyhow::Error {
 pub struct SttClient {
     url: String,
     sample_rate: u32,
+    model: String,
+    language: String,
 }
 
 impl SttClient {
-    pub fn new(url: &str, sample_rate: u32) -> Self {
+    pub fn new(url: &str, sample_rate: u32, model: &str, language: &str) -> Self {
         Self {
             url: url.to_string(),
             sample_rate,
+            model: model.to_string(),
+            language: language.to_string(),
         }
     }
 
@@ -124,8 +128,8 @@ impl SttClient {
     {
         // Build WebSocket URL with query parameters
         let ws_url = format!(
-            "{}?model=flux-general-en&sample_rate={}&encoding=linear16",
-            self.url, self.sample_rate
+            "{}?model={}&language={}&sample_rate={}&encoding=linear16",
+            self.url, self.model, self.language, self.sample_rate
         );
 
         debug!("Connecting to speech-to-text service: {}", ws_url);
@@ -379,7 +383,7 @@ mod tests {
         let stt_url = std::env::var("STT_TEST_URL").unwrap_or_else(|_| STT_URL.to_string());
         let sample_rate: u32 = 16_000;
 
-        let client = SttClient::new(&stt_url, sample_rate);
+        let client = SttClient::new(&stt_url, sample_rate, "flux-general-en", "en");
 
         // Flag flipped when we successfully deserialize a TurnInfo and invoke callback
         let got_result = Arc::new(AtomicBool::new(false));
@@ -434,7 +438,7 @@ mod tests {
         let stt_url = std::env::var("STT_TEST_URL").unwrap_or_else(|_| STT_URL.to_string());
         let sample_rate: u32 = 16_000;
 
-        let client = SttClient::new(&stt_url, sample_rate);
+        let client = SttClient::new(&stt_url, sample_rate, "nova-3-general", "en");
 
         // Flag flipped when we successfully deserialize a TurnInfo and invoke callback
         let got_result = Arc::new(AtomicBool::new(false));

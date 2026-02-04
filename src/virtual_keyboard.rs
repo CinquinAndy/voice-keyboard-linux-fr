@@ -10,6 +10,7 @@ use std::os::unix::io::FromRawFd;
 use tracing::{debug, error, info, warn};
 
 use crate::input_event::*;
+use crate::keyboard_layout::KeyboardLayout;
 
 // Define ioctl macros for uinput
 // The nix ioctl_write_int! macro requires the ioctl type and number
@@ -30,10 +31,11 @@ pub trait KeyboardHardware {
 pub struct RealKeyboardHardware {
     fd: i32,
     name: String,
+    layout: KeyboardLayout,
 }
 
 impl RealKeyboardHardware {
-    pub fn new(device_name: &str) -> Result<Self> {
+    pub fn new(device_name: &str, layout: KeyboardLayout) -> Result<Self> {
         info!("Creating virtual keyboard device: {}", device_name);
 
         // Open uinput device
@@ -100,6 +102,7 @@ impl RealKeyboardHardware {
         Ok(Self {
             fd,
             name: device_name.to_string(),
+            layout,
         })
     }
 
@@ -147,10 +150,10 @@ impl RealKeyboardHardware {
 
 impl KeyboardHardware for RealKeyboardHardware {
     fn type_text(&mut self, text: &str) -> Result<()> {
-        debug!("Typing text: '{}'", text);
+        debug!("Typing text: '{}' with layout {:?}", text, self.layout);
 
         for c in text.chars() {
-            if let Some((keycode, needs_shift)) = char_to_keycode(c) {
+            if let Some((keycode, needs_shift)) = char_to_keycode(c, self.layout) {
                 if needs_shift {
                     // Press shift
                     self.send_key(KEY_LEFTSHIFT, true)?;
@@ -222,15 +225,17 @@ pub struct VirtualKeyboard<H: KeyboardHardware> {
     current_text: String,
     interpret_enter_word: bool,
     uppercase_enabled: bool,
+    layout: KeyboardLayout,
 }
 
 impl<H: KeyboardHardware> VirtualKeyboard<H> {
-    pub fn new(hardware: H) -> Self {
+    pub fn new(hardware: H, layout: KeyboardLayout) -> Self {
         Self {
             hardware,
             current_text: String::new(),
             interpret_enter_word: true,
             uppercase_enabled: false,
+            layout,
         }
     }
 
@@ -445,7 +450,7 @@ mod tests {
 
     #[test]
     fn test_incremental_typing_extension() {
-        let mut kb = VirtualKeyboard::new(MockKeyboardHardware::new());
+        let mut kb = VirtualKeyboard::new(MockKeyboardHardware::new(), KeyboardLayout::Qwerty);
 
         // Start with "hello"
         kb.update_transcript("hello").unwrap();
@@ -465,7 +470,7 @@ mod tests {
 
     #[test]
     fn test_incremental_typing_change() {
-        let mut kb = VirtualKeyboard::new(MockKeyboardHardware::new());
+        let mut kb = VirtualKeyboard::new(MockKeyboardHardware::new(), KeyboardLayout::Qwerty);
 
         // Start with "hello"
         kb.update_transcript("hello").unwrap();
@@ -485,7 +490,7 @@ mod tests {
 
     #[test]
     fn test_finalize_transcript() {
-        let mut kb = VirtualKeyboard::new(MockKeyboardHardware::new());
+        let mut kb = VirtualKeyboard::new(MockKeyboardHardware::new(), KeyboardLayout::Qwerty);
 
         // Type some text
         kb.update_transcript("hello").unwrap();
@@ -501,7 +506,7 @@ mod tests {
 
     #[test]
     fn test_empty_transcript() {
-        let mut kb = VirtualKeyboard::new(MockKeyboardHardware::new());
+        let mut kb = VirtualKeyboard::new(MockKeyboardHardware::new(), KeyboardLayout::Qwerty);
 
         // Start with some text
         kb.update_transcript("hello").unwrap();
@@ -515,7 +520,7 @@ mod tests {
 
     #[test]
     fn test_smart_backspacing_partial_change() {
-        let mut kb = VirtualKeyboard::new(MockKeyboardHardware::new());
+        let mut kb = VirtualKeyboard::new(MockKeyboardHardware::new(), KeyboardLayout::Qwerty);
 
         // Start with "hello world"
         kb.update_transcript("hello world").unwrap();
@@ -538,7 +543,7 @@ mod tests {
 
     #[test]
     fn test_smart_backspacing_no_common_prefix() {
-        let mut kb = VirtualKeyboard::new(MockKeyboardHardware::new());
+        let mut kb = VirtualKeyboard::new(MockKeyboardHardware::new(), KeyboardLayout::Qwerty);
 
         // Start with "hello"
         kb.update_transcript("hello").unwrap();
@@ -554,7 +559,7 @@ mod tests {
 
     #[test]
     fn test_smart_backspacing_shortening() {
-        let mut kb = VirtualKeyboard::new(MockKeyboardHardware::new());
+        let mut kb = VirtualKeyboard::new(MockKeyboardHardware::new(), KeyboardLayout::Qwerty);
 
         // Start with "hello world"
         kb.update_transcript("hello world").unwrap();
@@ -570,7 +575,7 @@ mod tests {
 
     #[test]
     fn test_finalize_with_enter_command() {
-        let mut kb = VirtualKeyboard::new(MockKeyboardHardware::new());
+        let mut kb = VirtualKeyboard::new(MockKeyboardHardware::new(), KeyboardLayout::Qwerty);
 
         // Type text ending with "enter"
         kb.update_transcript("Write a unit test enter").unwrap();
@@ -587,7 +592,7 @@ mod tests {
 
     #[test]
     fn test_finalize_with_enter_only() {
-        let mut kb = VirtualKeyboard::new(MockKeyboardHardware::new());
+        let mut kb = VirtualKeyboard::new(MockKeyboardHardware::new(), KeyboardLayout::Qwerty);
 
         // Type only "enter"
         kb.update_transcript("enter").unwrap();
@@ -604,7 +609,7 @@ mod tests {
 
     #[test]
     fn test_finalize_with_enter_case_insensitive() {
-        let mut kb = VirtualKeyboard::new(MockKeyboardHardware::new());
+        let mut kb = VirtualKeyboard::new(MockKeyboardHardware::new(), KeyboardLayout::Qwerty);
 
         // Type text ending with "ENTER" (uppercase)
         kb.update_transcript("hello ENTER").unwrap();
@@ -621,7 +626,7 @@ mod tests {
 
     #[test]
     fn test_finalize_without_enter_command() {
-        let mut kb = VirtualKeyboard::new(MockKeyboardHardware::new());
+        let mut kb = VirtualKeyboard::new(MockKeyboardHardware::new(), KeyboardLayout::Qwerty);
 
         // Type text not ending with "enter"
         kb.update_transcript("hello world").unwrap();
@@ -639,7 +644,7 @@ mod tests {
 
     #[test]
     fn test_finalize_with_enter_in_middle() {
-        let mut kb = VirtualKeyboard::new(MockKeyboardHardware::new());
+        let mut kb = VirtualKeyboard::new(MockKeyboardHardware::new(), KeyboardLayout::Qwerty);
 
         // Type text with "enter" in the middle, not at the end
         kb.update_transcript("enter the room").unwrap();
@@ -667,7 +672,7 @@ mod tests {
         ];
 
         for (input, should_trigger) in test_cases {
-            let mut kb = VirtualKeyboard::new(MockKeyboardHardware::new());
+            let mut kb = VirtualKeyboard::new(MockKeyboardHardware::new(), KeyboardLayout::Qwerty);
             kb.update_transcript(input).unwrap();
             kb.finalize_transcript().unwrap();
 
@@ -702,7 +707,7 @@ mod tests {
         ];
 
         for (input, should_trigger) in test_cases {
-            let mut kb = VirtualKeyboard::new(MockKeyboardHardware::new());
+            let mut kb = VirtualKeyboard::new(MockKeyboardHardware::new(), KeyboardLayout::Qwerty);
             kb.update_transcript(input).unwrap();
             kb.finalize_transcript().unwrap();
 
@@ -738,7 +743,7 @@ mod tests {
         ];
 
         for (input, should_trigger) in test_cases {
-            let mut kb = VirtualKeyboard::new(MockKeyboardHardware::new());
+            let mut kb = VirtualKeyboard::new(MockKeyboardHardware::new(), KeyboardLayout::Qwerty);
             kb.update_transcript(input).unwrap();
             kb.finalize_transcript().unwrap();
 
@@ -768,7 +773,7 @@ mod tests {
         ];
 
         for (input, should_trigger) in test_cases {
-            let mut kb = VirtualKeyboard::new(MockKeyboardHardware::new());
+            let mut kb = VirtualKeyboard::new(MockKeyboardHardware::new(), KeyboardLayout::Qwerty);
             kb.update_transcript(input).unwrap();
             kb.finalize_transcript().unwrap();
 
@@ -802,7 +807,7 @@ mod tests {
         ];
 
         for (input, should_trigger) in test_cases {
-            let mut kb = VirtualKeyboard::new(MockKeyboardHardware::new());
+            let mut kb = VirtualKeyboard::new(MockKeyboardHardware::new(), KeyboardLayout::Qwerty);
             kb.update_transcript(input).unwrap();
             kb.finalize_transcript().unwrap();
 
@@ -824,7 +829,7 @@ mod tests {
 
     #[test]
     fn test_uppercase_mode_basic() {
-        let mut kb = VirtualKeyboard::new(MockKeyboardHardware::new());
+        let mut kb = VirtualKeyboard::new(MockKeyboardHardware::new(), KeyboardLayout::Qwerty);
         kb.set_uppercase_enabled(true);
 
         // Type some text
@@ -835,7 +840,7 @@ mod tests {
 
     #[test]
     fn test_uppercase_mode_incremental() {
-        let mut kb = VirtualKeyboard::new(MockKeyboardHardware::new());
+        let mut kb = VirtualKeyboard::new(MockKeyboardHardware::new(), KeyboardLayout::Qwerty);
         kb.set_uppercase_enabled(true);
 
         // Start with "hello"
@@ -850,7 +855,7 @@ mod tests {
 
     #[test]
     fn test_uppercase_mode_with_enter_command() {
-        let mut kb = VirtualKeyboard::new(MockKeyboardHardware::new());
+        let mut kb = VirtualKeyboard::new(MockKeyboardHardware::new(), KeyboardLayout::Qwerty);
         kb.set_uppercase_enabled(true);
 
         // Type text ending with "enter"
@@ -868,7 +873,7 @@ mod tests {
 
     #[test]
     fn test_normal_mode_basic() {
-        let mut kb = VirtualKeyboard::new(MockKeyboardHardware::new());
+        let mut kb = VirtualKeyboard::new(MockKeyboardHardware::new(), KeyboardLayout::Qwerty);
         // uppercase_enabled is false by default
 
         // Type some text
