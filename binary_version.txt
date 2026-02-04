@@ -1,0 +1,2 @@
+[2m2026-02-04T02:00:25.497626Z[0m [32m INFO[0m [2mvoice_keyboard[0m[2m:[0m Starting Voice Keyboard v0.1.0
+voice-keyboard 0.1.0

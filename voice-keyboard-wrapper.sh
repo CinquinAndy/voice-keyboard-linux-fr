@@ -15,4 +15,4 @@ exec sudo \
   PULSE_SERVER="$PULSE_SERVER" \
   DEEPGRAM_API_KEY="$DEEPGRAM_API_KEY" \
   RUST_LOG="$RUST_LOG" \
-  /home/andycinquin/.local/bin/voice-keyboard --language multi --model nova-3-general "$@"
+  /home/andycinquin/.local/bin/voice-keyboard --language multi --model nova-2 "$@"

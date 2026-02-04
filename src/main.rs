@@ -14,6 +14,10 @@ mod stt_client;
 mod virtual_keyboard;
 
 use audio_input::AudioInput;
+use signal_hook::consts::signal::SIGUSR1;
+use signal_hook::iterator::Signals;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use stt_client::{AudioBuffer, SttClient};
 use virtual_keyboard::{RealKeyboardHardware, VirtualKeyboard};
 use std::time::Instant;
@@ -189,6 +193,19 @@ async fn main() -> Result<()> {
         .drop_privileges()
         .context("Failed to drop root privileges")?;
 
+    // Setup signal handling for toggle (pause/resume)
+    let is_listening = Arc::new(AtomicBool::new(true));
+    let is_listening_signal = is_listening.clone();
+
+    thread::spawn(move || {
+        let mut signals = Signals::new(&[SIGUSR1]).expect("Failed to register signal handler");
+        for _ in signals.forever() {
+            let new_state = !is_listening_signal.load(Ordering::SeqCst);
+            is_listening_signal.store(new_state, Ordering::SeqCst);
+            info!("Listening state toggled: {}", if new_state { "ACTIVE" } else { "PAUSED" });
+        }
+    });
+
     if matches.get_flag("test-audio") {
         test_audio().await?;
     } else if matches.get_flag("test-stt") {
@@ -196,7 +213,7 @@ async fn main() -> Result<()> {
             .get_one::<String>("stt-url")
             .map(|s| s.as_str())
             .unwrap_or(stt_client::STT_URL);
-        test_stt(keyboard, stt_url).await?;
+        test_stt(keyboard, stt_url, is_listening).await?;
     } else {
         let debug_mode = matches.get_flag("debug-stt");
         let stt_url = matches
@@ -205,9 +222,9 @@ async fn main() -> Result<()> {
             .unwrap_or(stt_client::STT_URL);
 
         if debug_mode {
-            debug_stt(stt_url).await?;
+            debug_stt(stt_url, is_listening).await?;
         } else {
-            test_stt(keyboard, stt_url).await?;
+            test_stt(keyboard, stt_url, is_listening).await?;
         }
     }
 
@@ -256,7 +273,7 @@ async fn test_audio() -> Result<()> {
     Ok(())
 }
 
-async fn test_stt(keyboard: VirtualKeyboard<RealKeyboardHardware>, stt_url: &str) -> Result<()> {
+async fn test_stt(keyboard: VirtualKeyboard<RealKeyboardHardware>, stt_url: &str, is_listening: Arc<AtomicBool>) -> Result<()> {
     info!("Testing speech-to-text functionality...");
 
     // Wrap keyboard in a mutex to allow mutable access from the closure
@@ -266,7 +283,7 @@ async fn test_stt(keyboard: VirtualKeyboard<RealKeyboardHardware>, stt_url: &str
     let last_update_log = std::sync::Arc::new(std::sync::Mutex::new(None::<Instant>));
     let last_update_log_cloned = last_update_log.clone();
 
-    run_stt(stt_url, move |result| {
+    run_stt(stt_url, is_listening, move |result| {
         if !result.transcript.is_empty() {
             if result.event == "Update" {
                 let now = Instant::now();
@@ -307,11 +324,11 @@ async fn test_stt(keyboard: VirtualKeyboard<RealKeyboardHardware>, stt_url: &str
     }).await
 }
 
-async fn debug_stt(stt_url: &str) -> Result<()> {
+async fn debug_stt(stt_url: &str, is_listening: Arc<AtomicBool>) -> Result<()> {
     info!("Debugging speech-to-text functionality...");
     info!("STT Service URL: {}", stt_url);
 
-    run_stt(stt_url, |result| {
+    run_stt(stt_url, is_listening, |result| {
         // Only show non-empty transcriptions
         if !result.transcript.is_empty() {
             info!("Transcription [{}]: {}", result.event, result.transcript);
@@ -320,7 +337,7 @@ async fn debug_stt(stt_url: &str) -> Result<()> {
     .await
 }
 
-async fn run_stt<F>(stt_url: &str, on_transcription: F) -> Result<()>
+async fn run_stt<F>(stt_url: &str, is_listening: Arc<AtomicBool>, on_transcription: F) -> Result<()>
 where
     F: Fn(stt_client::TranscriptionResult) + Send + 'static,
 {
@@ -354,6 +371,9 @@ where
 
     // Start recording
     audio_input.start_recording(move |data| {
+        if !is_listening.load(Ordering::SeqCst) {
+            return;
+        }
         debug!("Received audio data: {} samples", data.len());
 
         // Average stereo channels to mono
