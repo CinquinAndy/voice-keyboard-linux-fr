@@ -9,10 +9,5 @@ export RUST_LOG="${RUST_LOG:-info}"
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR}"
 export PULSE_SERVER="${PULSE_SERVER:-unix:${XDG_RUNTIME_DIR}/pulse/native}"
 
-# Lancer voice-keyboard avec sudo en préservant l'environnement audio
-exec sudo \
-  XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" \
-  PULSE_SERVER="$PULSE_SERVER" \
-  DEEPGRAM_API_KEY="$DEEPGRAM_API_KEY" \
-  RUST_LOG="$RUST_LOG" \
-  /home/andycinquin/.local/bin/voice-keyboard "$@"
+# Lancer voice-keyboard
+exec /home/andycinquin/.local/bin/voice-keyboard "$@"

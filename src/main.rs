@@ -19,7 +19,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use stt_client::{AudioBuffer, SttClient};
 use std::fs::File;
-use std::io::Write;
+use std::io::{Write, Seek, SeekFrom};
 use nix::fcntl::{flock, FlockArg};
 use std::os::unix::io::AsRawFd;
 use virtual_keyboard::{RealKeyboardHardware, VirtualKeyboard};
@@ -98,12 +98,12 @@ impl OriginalUser {
                 env::set_var("WAYLAND_DISPLAY", wayland_disp);
             }
 
-            debug!("Successfully dropped privileges to user");
+            debug!("Successfully dropped privileges to user: uid={}, gid={}", getuid(), getgid());
 
             // Give audio system a moment to be ready
             std::thread::sleep(std::time::Duration::from_millis(100));
         } else {
-            debug!("Not running as root, no privilege dropping needed");
+            debug!("Not running as root (uid={}), no privilege dropping needed", getuid());
         }
 
         Ok(())
@@ -171,8 +171,8 @@ async fn main() -> Result<()> {
                 .help("Language code (en, fr, multi - only for nova models)")
                 .value_name("LANG")
                 .default_value("en"),
-        );
-    let matches = app.get_matches();
+        )
+        .get_matches();
 
     // Singleton check: prevent multiple instances
     let lock_file_path = "/tmp/voice-keyboard.lock";
@@ -212,13 +212,38 @@ async fn main() -> Result<()> {
     let is_listening = Arc::new(AtomicBool::new(true));
     let is_listening_signal = is_listening.clone();
 
+    // State file to share listening state with toggle script
+    let state_file_path = "/tmp/voice-keyboard.state";
+    let write_state = |state: bool| {
+        if let Ok(mut f) = File::create(state_file_path) {
+            let _ = f.write_all(if state { b"ACTIVE" } else { b"PAUSED" });
+        }
+    };
+    write_state(true); // Initial state
+
     tokio::spawn(async move {
+        info!("Signal handler task started, waiting for SIGUSR1 (toggle)...");
         let mut stream = signal(SignalKind::user_defined1()).expect("Failed to setup SIGUSR1 handler");
         loop {
             stream.recv().await;
-            let new_state = !is_listening_signal.load(Ordering::SeqCst);
+            let current_state = is_listening_signal.load(Ordering::SeqCst);
+            let new_state = !current_state;
             is_listening_signal.store(new_state, Ordering::SeqCst);
+            write_state(new_state);
+            // Use eprint! to make it very visible in the journal even if logging is buffered
+            eprintln!(">>> SIGNAL RECEIVED: Listening state changed from {} to {}", 
+                if current_state { "ACTIVE" } else { "PAUSED" },
+                if new_state { "ACTIVE" } else { "PAUSED" }
+            );
             info!("Listening state toggled: {}", if new_state { "ACTIVE" } else { "PAUSED" });
+        }
+    });
+
+    // Heartbeat task to prove we are alive in logs
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(Duration::from_secs(10)).await;
+            info!("Service heartbeat: process is running and waiting for audio...");
         }
     });
 
@@ -387,10 +412,11 @@ where
 
     // Start recording
     audio_input.start_recording(move |data| {
+        // Atomic check: if PAUSED, skip all processing and sending
         if !is_listening.load(Ordering::SeqCst) {
             return;
         }
-        debug!("Received audio data: {} samples", data.len());
+        // debug!("Received audio data: {} samples", data.len());
 
         // Average stereo channels to mono
         let mono_data: Vec<f32> = if channels == 2 {

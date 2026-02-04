@@ -1,24 +1,48 @@
 #!/bin/bash
-# Script pour toggle (activer/désactiver) le voice keyboard
+# Improved Voice Keyboard Toggle Script
 
-# Trouver le PID du processus voice-keyboard
-PID=$(pgrep -f "voice-keyboard" | head -n 1)
+LOCK_FILE="/tmp/voice-keyboard.lock"
 
-if [ -z "$PID" ]; then
-    echo "❌ Voice keyboard is not running"
-    notify-send "Voice Keyboard" "Service not running" -i dialog-error
-    exit 1
+# Check if the process is actually running
+if [ ! -f "$LOCK_FILE" ]; then
+    echo "🚀 Voice keyboard is not running. Starting service..."
+    systemctl --user start voice-keyboard
+    notify-send "Voice Keyboard" "Service started" -i microphone-sensitivity-high-symbolic
+    exit 0
 fi
 
-# Envoyer le signal SIGUSR1 pour toggle
-kill -SIGUSR1 "$PID"
+PID=$(cat "$LOCK_FILE")
 
-# Vérifier si le signal a été envoyé
-if [ $? -eq 0 ]; then
-    echo "✅ Toggle signal sent to PID $PID"
-    notify-send "Voice Keyboard" "Toggled listening state" -i microphone-sensitivity-high
+# Verify the process still exists and is correct
+if ! ps -p "$PID" > /dev/null; then
+    echo "⚠️ Process $PID from lock file not found. Restarting..."
+    rm "$LOCK_FILE"
+    systemctl --user restart voice-keyboard
+    notify-send "Voice Keyboard" "Service restarted" -i microphone-sensitivity-high-symbolic
+    exit 0
+fi
+
+# Send SIGUSR1 to toggle the state
+echo "📡 Sending toggle signal to PID $PID..."
+if kill -SIGUSR1 "$PID" 2>/dev/null; then
+    echo "✅ Toggle signal sent"
+    
+    # Wait a moment for the binary to write the new state
+    sleep 0.2
+    STATE="unknown"
+    if [ -f "/tmp/voice-keyboard.state" ]; then
+        STATE=$(cat "/tmp/voice-keyboard.state")
+    fi
+
+    if [ "$STATE" == "ACTIVE" ]; then
+        notify-send "Voice Keyboard" "🎤 ÉCOUTE ACTIVE" -i microphone-sensitivity-high-symbolic -t 2000
+    elif [ "$STATE" == "PAUSED" ]; then
+        notify-send "Voice Keyboard" "🔇 EN PAUSE" -i microphone-sensitivity-muted-symbolic -t 2000
+    else
+        notify-send "Voice Keyboard" "Toggled State" -i microphone-sensitivity-medium-symbolic -t 2000
+    fi
 else
     echo "❌ Failed to send toggle signal"
-    notify-send "Voice Keyboard" "Failed to toggle" -i dialog-error
+    notify-send "Voice Keyboard" "Failed to toggle service" -i dialog-error
     exit 1
 fi
