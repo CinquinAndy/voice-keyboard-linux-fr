@@ -1,53 +1,79 @@
-# Project XDR: The Fedora Voice-to-AI Bridge 🎤🤖
+# Voice Keyboard (Linux/Fedora)
 
-Project XDR is a collaborative experimentation born from the need for a seamless, low-latency voice interface on Fedora Linux. Its mission is simple: **Talk naturally to your AI and your computer, and let it write for you without barriers.**
+A low-latency voice-to-text tool written in Rust. It captures audio, sends it to Deepgram (Nova-2 model), and simulates keystrokes via `uinput`.
 
-This tool transforms your voice into high-accuracy text that "types" directly into any application—whether you're prompting an LLM, writing code, or emailing—making AI interaction feel as fluid as a conversation.
+Designed for seamless interaction with LLMs or text editors on Linux without keeping focus on a specific window.
 
-## 🌟 The Vision: Silence the Keyboard
+## Architecture
 
-Built specifically for the Fedora ecosystem, Project XDR solves the common "input friction" by:
-- **Direct Speech-to-AI**: Talk directly to your AI interfaces without the need for manual typing.
-- **System-Wide Integration**: Works in any terminal, editor, or browser.
-- **Distraction-Free Productivity**: Stay in the flow by using voice for long-form thoughts or complex commands.
+* **Language**: Rust (Tokio async runtime).
+* **Audio**: Native ALSA capture.
+* **Input**: Linux `uinput` virtual device (simulates a real hardware keyboard).
+* **API**: Deepgram WebSockets (Stream).
+* **Control**:
+  * **Singleton**: Uses `/tmp/voice-keyboard.lock` to prevent duplicate instances.
+  * **IPC**: Listens for `SIGUSR1` to toggle between `ACTIVE` and `PAUSED` states.
+  * **State**: Writes status to `/tmp/voice-keyboard.state`.
 
-## ✨ Key Technical Pillars
+## Installation
 
-- **Deepgram Nova-2 Engine**: Optimized for the latest STT models with multi-language support (English/French).
-- **Virtual Driver Architecture**: Uses `uinput` to act as a native hardware device—zero software compatibility issues.
-- **Zero-Sudo Autopilot**: A robust `systemd` user service that handles audio and STT in the background automatically.
-- **Smart Control**: A dedicated toggle script with visual notifications (`Ctrl+Alt+V`) to pause or resume listening instantly.
+### 1. Build
 
-## 🚀 Quick Setup (Fedora)
-
-### 1. Enable Hardware Access
-Run once to allow your user to operate the virtual keyboard:
 ```bash
-sudo cp 99-uinput.rules /etc/udev/rules.d/
+cargo build --release
+cp target/release/voice-keyboard ~/.local/bin/
+```
+
+### 2. Permissions (Zero-Sudo)
+
+Allow the current user to write to `/dev/uinput` without root privileges:
+
+```bash
+# Add udev rule
+echo 'KERNEL=="uinput", GROUP="input", MODE="0660"' | sudo tee /etc/udev/rules.d/99-uinput.rules
+
+# Apply rules
 sudo udevadm control --reload-rules && sudo udevadm trigger
+
+# Add user to input group
 sudo usermod -aG input $USER
 ```
-*Note: Log out and back in for the group changes to take effect.*
 
-### 2. Launch the Vision
-The service is ready to run in the background:
+*Logout and login required.*
+
+### 3. Systemd Service
+
+Enable the user service to run in the background.
+
 ```bash
 systemctl --user daemon-reload
 systemctl --user enable --now voice-keyboard
 ```
 
-## ⌨️ Productivity Shortcuts
+## Usage
 
-Map `Ctrl + Alt + V` to the following command to toggle the "AI Listening" mode:
+### Toggle (Start/Stop Listening)
+
+Send `SIGUSR1` to the process or use the provided script. This works instantly without killing the process.
+
 ```bash
-/home/andycinquin/.local/bin/toggle-voice-keyboard
+~/.local/bin/toggle-voice-keyboard
 ```
 
-## 📊 Monitoring (XDR Logs)
-Watch the AI process your speech in real-time:
+*Recommendation: Bind this script to a global shortcut like `Ctrl+Alt+V`.*
+
+### Logs
+
+View real-time transcription status and errors:
+
 ```bash
 journalctl --user -u voice-keyboard -f
 ```
 
----
-*Developed as a personal test laboratory to push the boundaries of human-AI interaction on the Linux desktop.*
+## Configuration
+
+Environment variables (set in systemd service or wrapper):
+
+* `DEEPGRAM_API_KEY`: Your API key.
+* `RUST_LOG`: Logging level (default: `info`).
+* `XDG_RUNTIME_DIR` / `PULSE_SERVER`: Audio environment context.
