@@ -1,31 +1,49 @@
 #!/bin/bash
-# Improved Voice Keyboard Toggle Script
 
+# Configuration
+RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+STATE_FILE="$RUNTIME_DIR/voice-keyboard.state"
 LOCK_FILE="/tmp/voice-keyboard.lock"
+SERVICE_NAME="voice-keyboard"
 
-# Check if the process is actually running
-if [ ! -f "$LOCK_FILE" ]; then
-    echo "🚀 Voice keyboard is not running. Starting service..."
-    systemctl --user start voice-keyboard
-    notify-send "Voice Keyboard" "Service started" -i microphone-sensitivity-high-symbolic
+echo "🔄 Voice Keyboard: Toggle & Self-Heal"
+
+# 1. Check if the binary is running (EXACT match to avoid wrapper/OSD)
+PID=$(pgrep -x "voice-keyboard")
+
+# SELF-HEAL FUNCTION
+perform_reset() {
+    echo "⚠️  Detected broken state or missing process. Performing full reset..."
+    notify-send "Voice Keyboard" "Service error. Resetting..." -i dialog-warning -t 3000
+    
+    # Stop everything
+    systemctl --user stop "$SERVICE_NAME" 2>/dev/null
+    pkill -9 -f "voice-keyboard" 2>/dev/null
+    
+    # Clean stale files
+    echo "🧹 Cleaning stale lock and state files..."
+    rm -f "$LOCK_FILE"
+    rm -f "$STATE_FILE"
+    
+    # Restart cleanly
+    echo "🚀 Restarting service..."
+    if systemctl --user start "$SERVICE_NAME"; then
+        notify-send "Voice Keyboard" "Service restarted and active" -i microphone-sensitivity-medium-symbolic -t 2000
+        echo "✅ Reset complete. Service is running."
+    else
+        notify-send "Voice Keyboard" "CRITICAL: Failed to restart service" -i dialog-error
+        echo "❌ Reset failed."
+        exit 1
+    fi
+}
+
+# 2. Logic: If no PID, or if state file is missing/stale while PID exists
+if [ -z "$PID" ]; then
+    perform_reset
     exit 0
 fi
 
-PID=$(cat "$LOCK_FILE")
-
-# Verify the process still exists and is correct
-if ! ps -p "$PID" > /dev/null; then
-    echo "⚠️ Process $PID from lock file not found. Restarting..."
-    rm "$LOCK_FILE"
-    systemctl --user restart voice-keyboard
-    notify-send "Voice Keyboard" "Service restarted" -i microphone-sensitivity-high-symbolic
-    exit 0
-fi
-
-# State file location (prefer XDG_RUNTIME_DIR)
-STATE_FILE="${XDG_RUNTIME_DIR:-/tmp}/voice-keyboard.state"
-
-# Send SIGUSR1 to toggle the state
+# 3. Try to toggle the running process
 echo "📡 Sending toggle signal to PID $PID..."
 if kill -SIGUSR1 "$PID" 2>/dev/null; then
     echo "✅ Toggle signal sent"
@@ -38,14 +56,16 @@ if kill -SIGUSR1 "$PID" 2>/dev/null; then
     fi
 
     if [ "$STATE" == "ACTIVE" ]; then
-        notify-send "Voice Keyboard" "🎤 ÉCOUTE ACTIVE" -i microphone-sensitivity-high-symbolic -t 2000
+        echo "🎤 State: ACTIVE"
+        notify-send "Voice Keyboard" "Listening..." -i microphone-sensitivity-high-symbolic -t 2000
     elif [ "$STATE" == "PAUSED" ]; then
-        notify-send "Voice Keyboard" "🔇 EN PAUSE" -i microphone-sensitivity-muted-symbolic -t 2000
+        echo "⏸️  State: PAUSED"
+        notify-send "Voice Keyboard" "Paused" -i microphone-sensitivity-muted-symbolic -t 2000
     else
-        notify-send "Voice Keyboard" "Toggled State" -i microphone-sensitivity-medium-symbolic -t 2000
+        echo "❓ State unknown or file missing. Attempting self-heal anyway."
+        perform_reset
     fi
 else
-    echo "❌ Failed to send toggle signal"
-    notify-send "Voice Keyboard" "Failed to toggle service" -i dialog-error
-    exit 1
+    echo "❌ Failed to send signal to PID $PID."
+    perform_reset
 fi
