@@ -1,0 +1,21 @@
+[Unit]
+Description=Voice Keyboard - Speech to Text Input
+Documentation=https://github.com/deepgram/voice-keyboard-linux
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/voice-keyboard-wrapper
+Restart=on-failure
+RestartSec=5s
+
+# Environnement
+Environment="RUST_LOG=info"
+
+# Logs
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=voice-keyboard
+
+[Install]
+WantedBy=default.target
