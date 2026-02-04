@@ -127,10 +127,19 @@ impl SttClient {
         F: FnMut(TranscriptionResult) + Send + 'static,
     {
         // Build WebSocket URL with query parameters
-        let ws_url = format!(
+    // Note: Deepgram Flux models (and some others) often don't allow a separate 'language' parameter
+    // if the language is already encoded in the model name or if it's the default.
+    let ws_url = if self.model.contains("flux") {
+        format!(
+            "{}?model={}&sample_rate={}&encoding=linear16",
+            self.url, self.model, self.sample_rate
+        )
+    } else {
+        format!(
             "{}?model={}&language={}&sample_rate={}&encoding=linear16",
             self.url, self.model, self.language, self.sample_rate
-        );
+        )
+    };
 
         debug!("Connecting to speech-to-text service: {}", ws_url);
 

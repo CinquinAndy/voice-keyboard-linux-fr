@@ -1,0 +1,15 @@
+Error: Failed to connect to STT service
+
+Caused by:
+    WebSocket HTTP handshake failed: 400 Bad Request
+    Headers:
+      content-type: application/json
+      dg-error: Only the flux-general-en model is supported.
+      vary: origin, access-control-request-method, access-control-request-headers
+      vary: accept-encoding
+      access-control-allow-credentials: true
+      access-control-expose-headers: dg-model-name,dg-model-uuid,dg-char-count,dg-request-id,dg-project-id,dg-error
+      dg-request-id: 5a621e6e-7361-4432-9c49-c5dde9327b8f
+      content-length: 147
+      date: Wed, 04 Feb 2026 02:28:18 GMT
+    Body: {"err_code":"INVALID_QUERY_PARAMETER","err_msg":"Only the flux-general-en model is supported.","request_id":"5a621e6e-7361-4432-9c49-c5dde9327b8f"}

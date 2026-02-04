@@ -1,0 +1,15 @@
+Error: Failed to connect to STT service
+
+Caused by:
+    WebSocket HTTP handshake failed: 400 Bad Request
+    Headers:
+      content-type: application/json
+      dg-error: Unknown query parameters: language
+      vary: origin, access-control-request-method, access-control-request-headers
+      vary: accept-encoding
+      access-control-allow-credentials: true
+      access-control-expose-headers: dg-model-name,dg-model-uuid,dg-char-count,dg-request-id,dg-project-id,dg-error
+      dg-request-id: 3902db0c-a05c-4795-9fbc-638ba23b0bd1
+      content-length: 137
+      date: Wed, 04 Feb 2026 02:25:26 GMT
+    Body: {"err_code":"INVALID_QUERY_PARAMETER","err_msg":"Unknown query parameters: language","request_id":"3902db0c-a05c-4795-9fbc-638ba23b0bd1"}

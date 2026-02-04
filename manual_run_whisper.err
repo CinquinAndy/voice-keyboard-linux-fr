@@ -1,0 +1,15 @@
+Error: Failed to connect to STT service
+
+Caused by:
+    WebSocket HTTP handshake failed: 400 Bad Request
+    Headers:
+      content-type: application/json
+      dg-error: Failed to deserialize query parameters: Model must have exactly 3 parts separated by hyphens, such as "flux-general-en". Got: whisper-large
+      vary: origin, access-control-request-method, access-control-request-headers
+      vary: accept-encoding
+      access-control-allow-credentials: true
+      access-control-expose-headers: dg-model-name,dg-model-uuid,dg-char-count,dg-request-id,dg-project-id,dg-error
+      dg-request-id: 5d6987cb-0b63-497b-bd25-67d2b53dd21b
+      content-length: 244
+      date: Wed, 04 Feb 2026 02:26:09 GMT
+    Body: {"err_code":"INVALID_QUERY_PARAMETER","err_msg":"Failed to deserialize query parameters: Model must have exactly 3 parts separated by hyphens, such as \"flux-general-en\". Got: whisper-large","request_id":"5d6987cb-0b63-497b-bd25-67d2b53dd21b"}

@@ -1,0 +1,15 @@
+Error: Failed to connect to STT service
+
+Caused by:
+    WebSocket HTTP handshake failed: 400 Bad Request
+    Headers:
+      content-type: application/json
+      dg-error: Failed to deserialize query parameters: Invalid tier 'nova'
+      vary: origin, access-control-request-method, access-control-request-headers
+      vary: accept-encoding
+      access-control-allow-credentials: true
+      access-control-expose-headers: dg-model-name,dg-model-uuid,dg-char-count,dg-request-id,dg-project-id,dg-error
+      dg-request-id: d9e1cf4a-bd58-49eb-8e83-20b0bc7f60e6
+      content-length: 162
+      date: Wed, 04 Feb 2026 02:25:40 GMT
+    Body: {"err_code":"INVALID_QUERY_PARAMETER","err_msg":"Failed to deserialize query parameters: Invalid tier 'nova'","request_id":"d9e1cf4a-bd58-49eb-8e83-20b0bc7f60e6"}
