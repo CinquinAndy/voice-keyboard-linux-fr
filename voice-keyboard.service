@@ -6,8 +6,8 @@ After=graphical-session.target sound.target
 [Service]
 Type=simple
 ExecStart=/bin/bash -c 'XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR} exec /home/andycinquin/.local/bin/voice-keyboard-wrapper'
-Restart=on-failure
-RestartSec=10s
+Restart=always
+RestartSec=5s
 
 # Environment variables
 Environment="XDG_RUNTIME_DIR=/run/user/1000"

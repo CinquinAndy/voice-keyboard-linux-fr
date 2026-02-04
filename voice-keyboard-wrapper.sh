@@ -10,21 +10,23 @@ export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR}"
 export PULSE_SERVER="${PULSE_SERVER:-unix:${XDG_RUNTIME_DIR}/pulse/native}"
 
 # Lancer l'indicateur visuel (OSD) en arrière-plan
-# Il restera actif tant que le service tourne
 python3 /home/andycinquin/.local/bin/voice-keyboard-osd.py &
 OSD_PID=$!
 
-# Fonction de nettoyage lors de la sortie
+# Fonction de nettoyage
 cleanup() {
     echo "Stopping OSD (PID $OSD_PID)..."
     kill $OSD_PID 2>/dev/null
-    exit 0
+    # On sort avec l'exit code du dernier programme capturé si disponible
+    exit ${EXIT_CODE:-0}
 }
 
-# Piéger les signaux pour s'assurer que l'OSD s'arrête proprement
-# Sauf SIGUSR1 qui est pour le toggle !
+# Trap pour s'assurer du nettoyage, mais ignorer SIGUSR1 (utilisé par le binaire)
 trap cleanup SIGINT SIGTERM EXIT
 
 # Lancer voice-keyboard
-# Note: On ne fait PAS 'exec' ici pour pouvoir faire le trap cleanup après
 /home/andycinquin/.local/bin/voice-keyboard "$@"
+EXIT_CODE=$? # Capturer l'exit code du binaire
+
+# On force l'exécution du cleanup après que le binaire a fini
+cleanup
